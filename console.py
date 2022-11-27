@@ -1,186 +1,212 @@
 #!/usr/bin/python3
 """
-This file defines the console class which will
-serve as the entry point of the entire project
+console
 """
-from cmd import Cmd
+import cmd
+import re
+from shlex import split
 from models import storage
-from models.engine.errors import *
-import shlex
-from models.base_model import BaseModel
-from models.user import User
-from models.state import State
-from models.city import City
 from models.amenity import Amenity
+from models.base_model import BaseModel
+from models.city import City
 from models.place import Place
 from models.review import Review
+from models.state import State
+from models.user import User
 
 
-# Global variable of registered models
-classes = storage.models
+def parse(arg):
+    """Converts an input line to a list of toke/argument"""
+    curly = re.search(r"\{(.*?)\}", arg)
+    brackets = re.search(r"\[(.*?)\]", arg)
+    if curly is None and brackets is None:
+        return [i.strip(',') for i in split(arg)]
+    if curly is not None:
+        pre = split(arg[:curly.span()[0]])
+        tokens = [i.strip(',') for i in pre]
+        tokens.append(curly.group())
+    elif brackets is not None:
+        pre = split(arg[:brackets.span()[0]])
+        tokens = [i.strip(',') for i in pre]
+        tokens.append(brackets.group())
+    return tokens
 
 
-class HBNBCommand(Cmd):
-    """
-    The Console based driver of the AirBnb Clone
-    All interactions with the system is done via
-    this class"""
+class HBNBCommand(cmd.Cmd):
+    """Entry point for the command interpreter"""
 
-    prompt = "(hbnb) "
+    prompt = '(hbnb) '
 
-    """Commands"""
-    def do_EOF(self, args):
-        """Exit the programme in non-interactive mode"""
+    __articles = {
+        "BaseModel",
+        "User",
+        "State",
+        "City",
+        "Amenity",
+        "Place",
+        "Review"
+    }
+
+    def do_quit(self, arg):
+        """Quit command to exit the program\n"""
+
         return True
 
-    def do_quit(self, args):
-        """Quit command exit the program"""
+    def do_EOF(self, arg):
+        """Defines what happens when an end-of-file is passed back.\n"""\
+            """end-of-file is passed back as the string 'EOF'."""
+
+        print()
         return True
-
-    def do_create(self, args):
-        """Create an instance of Model given its name eg.
-        $ create ModelName
-        Throws an Error if ModelName is missing or doesnt exist"""
-        args, n = parse(args)
-
-        if not n:
-            print("** class name missing **")
-        elif args[0] not in classes:
-            print("** class doesn't exist **")
-        elif n == 1:
-            # temp = classes[args[0]]()
-            temp = eval(args[0])()
-            print(temp.id)
-            temp.save()
-        else:
-            print("** Too many argument for create **")
-            pass
-
-    def do_show(self, arg):
-        """Show an Instance of Model base on its ModelName and id eg.
-        $ show MyModel instance_id
-        Print error message if either MyModel or instance_id is missing
-        Print an Error message for wrong MyModel or instance_id"""
-        args, n = parse(arg)
-
-        if not n:
-            print("** class name missing **")
-        elif n == 1:
-            print("** instance id missing **")
-        elif n == 2:
-            try:
-                inst = storage.find_by_id(*args)
-                print(inst)
-            except ModelNotFoundError:
-                print("** class doesn't exist **")
-            except InstanceNotFoundError:
-                print("** no instance found **")
-        else:
-            print("** Too many argument for show **")
-            pass
-
-    def do_destroy(self, arg):
-        """Deletes an Instance of Model base on its ModelName and id."""
-        args, n = parse(arg)
-
-        if not n:
-            print("** class name missing **")
-        elif n == 1:
-            print("** instance id missing **")
-        elif n == 2:
-            try:
-                storage.delete_by_id(*args)
-            except ModelNotFoundError:
-                print("** class doesn't exist **")
-            except InstanceNotFoundError:
-                print("** no instance found **")
-        else:
-            print("** Too many argument for destroy **")
-            pass
-
-    def do_all(self, args):
-        """Usage: all or all <class> or <class>.all()
-        Display string representations of all instances of a given class.
-        If no class is specified, displays all instantiated objects."""
-        args, n = parse(args)
-
-        if n < 2:
-            try:
-                print(storage.find_all(*args))
-            except ModelNotFoundError:
-                print("** class doesn't exist **")
-        else:
-            print("** Too many argument for all **")
-            pass
-
-    def do_update(self, arg):
-        """Updates an instance base on its id eg
-        $ update Model id field value
-        Throws errors for missing arguments"""
-        args, n = parse(arg)
-        if not n:
-            print("** class name missing **")
-        elif n == 1:
-            print("** instance id missing **")
-        elif n == 2:
-            print("** attribute name missing **")
-        elif n == 3:
-            print("** value missing **")
-        else:
-            try:
-                storage.update_one(*args[0:4])
-            except ModelNotFoundError:
-                print("** class doesn't exist **")
-            except InstanceNotFoundError:
-                print("** no instance found **")
-
-    def do_models(self, arg):
-        """Print all registered Models"""
-        print(*classes)
-
-    def handle_class_methods(self, arg):
-        """Handle Class Methods
-        <cls>.all(), <cls>.show() etc
-        """
-
-        printable = ("all(", "show(", "count(", "create(")
-        try:
-            val = eval(arg)
-            for x in printable:
-                if x in arg:
-                    print(val)
-                    break
-            return
-        except AttributeError:
-            print("** invalid method **")
-        except InstanceNotFoundError:
-            print("** no instance found **")
-        except TypeError as te:
-            field = te.args[0].split()[-1].replace("_", " ")
-            field = field.strip("'")
-            print(f"** {field} missing **")
-        except Exception as e:
-            print("** invalid syntax **")
-            pass
-
-    def default(self, arg):
-        """Override default method to handle class methods"""
-        if '.' in arg and arg[-1] == ')':
-            if arg.split('.')[0] not in classes:
-                print("** class doesn't exist **")
-                return
-            return self.handle_class_methods(arg)
-        return Cmd.default(self, arg)
 
     def emptyline(self):
-        """Override empty line to do nothing"""
+        """ Do nothing when an empty line is entered"""
+        pass
+
+    def default(self, arg):
+        """Default invalid input handling """
+
+        meth_dic = {
+            "all": self.do_all,
+            "count": self.do_count,
+            "create": self.do_create,
+            "destroy": self.do_destroy,
+            "show": self.do_show,
+            "update": self.do_update
+        }
+
+        dot = re.search(r"\.", arg)
+        if dot is not None:
+            arg_list = [arg[:dot.span()[0]], arg[dot.span()[1]:]]
+            par = re.search(r"\((.*?)\)", arg_list[1])
+            if par is not None:
+                command = [arg_list[1][:par.span()[0]], par.group()[1:-1]]
+                if command[0] in meth_dic.keys():
+                    input_args = "{} {}".format(arg_list[0], command[1])
+                    meth_to_func = meth_dic[command[0]]
+                    return meth_to_func(input_args)
+        print("*** Unknown syntax: {}".format(arg))
         return
 
+    def do_create(self, arg):
+        """Usage: create <class>.\n"""\
+            """Creates a new instance of the class in arg and prints it id."""
 
-def parse(line: str):
-    """splits a line by spaces"""
-    args = shlex.split(line)
-    return args, len(args)
+        tokens = parse(arg)
+        if len(tokens) == 0:
+            print("** class name missing **")
+        elif tokens[0] not in HBNBCommand.__articles:
+            print("** class doesn't exist **")
+        else:
+            print(eval(tokens[0])().id)
+            storage.save()
+
+    def do_count(self, arg):
+        """Usage: <class name>.count().\n"""\
+            """Retrieve the number of instances of a class."""
+
+        count = 0
+        tokens = parse(arg)
+        if len(tokens) < 1:
+            return
+        store = storage.all()
+        for obj in store.values():
+            if obj.__class__.__name__ == tokens[0]:
+                count += 1
+        print(count)
+
+    def do_show(self, arg):
+        """Usage: show <class name> <id>.\n"""\
+            """Displays the string representation of class instance"""\
+            """based on given id."""
+
+        store = storage.all()
+        tokens = parse(arg)
+        if len(tokens) == 0:
+            print("** class name missing **")
+        elif tokens[0] not in HBNBCommand.__articles:
+            print("** class doesn't exist **")
+        elif len(tokens) == 1:
+            print("** instance id missing **")
+        elif "{}.{}".format(tokens[0], tokens[1]) not in store.keys():
+            print("** no instance found **")
+        else:
+            print(store["{}.{}".format(tokens[0], tokens[1])])
+
+    def do_destroy(Self, arg):
+        """Usage: delete <class name> <id>.\n"""\
+            """Deletes the class instance with the given id."""
+        store = storage.all()
+        tokens = parse(arg)
+        if len(tokens) == 0:
+            print("** class name missing **")
+        elif tokens[0] not in HBNBCommand.__articles:
+            print("** class doesn't exist **")
+        elif len(tokens) == 1:
+            print("** instance id missing **")
+        elif "{}.{}".format(tokens[0], tokens[1]) not in store.keys():
+            print("** no instance found **")
+        else:
+            del store["{}.{}".format(tokens[0], tokens[1])]
+            storage.save()
+
+    def do_all(self, arg):
+        """Usage: all <class name> or all.\nPrint """\
+            """all string representation of all instances of a given class."""\
+            """\nIf no class is specified, print all instantiated objects."""
+        store = storage.all()
+        tokens = parse(arg)
+        if len(tokens) == 0:
+            _all = [str(obj) for obj in store.values()]
+        else:
+            if tokens[0] not in HBNBCommand.__articles:
+                print("** class doesn't exist **")
+                return
+            else:
+                _all = []
+                for obj in store.values():
+                    if obj.__class__.__name__ == tokens[0]:
+                        _all.append(str(obj))
+        print(_all)
+
+    def do_update(self, arg):
+        """Usage: update <class name> <id> <attribute name> """\
+            """\"<attribute value>\". \nUpdate class instance with """\
+            """a given id by adding or updating attribute."""
+        store = storage.all()
+        tokens = parse(arg)
+        print(tokens)
+        if len(tokens) == 0:
+            print("** class name missing **")
+        elif tokens[0] not in HBNBCommand.__articles:
+            print("** class doesn't exist **")
+        elif len(tokens) == 1:
+            print("** instance id missing **")
+        elif "{}.{}".format(tokens[0], tokens[1]) not in store.keys():
+            print("** no instance found **")
+        elif len(tokens) == 2:
+            print("** attribute name missing **")
+        elif len(tokens) == 3:
+            if (type(eval(tokens[2])) != dict):
+                print("** value missing **")
+            else:
+                obj = store["{}.{}".format(tokens[0], tokens[1])]
+                for k, v in eval(tokens[2]).items():
+                    if (k in obj.__class__.__dict__.keys() and
+                            type(obj.__class__.__dict__[k] in
+                                 {str, int, float})):
+                        valtype = type(obj.__class__.__dict__[k])
+                        obj.__dict__[k] = valtype(v)
+                    else:
+                        obj.__dict__[k] = v
+        else:
+            obj = store["{}.{}".format(tokens[0], tokens[1])]
+            if tokens[2] in obj.__class__.__dict__.keys():
+                valtype = type(obj.__class__.__dict__[tokens[2]])
+                obj.__dict__[tokens[2]] = valtype(tokens[3])
+            else:
+                obj.__dict__[tokens[2]] = tokens[3]
+        storage.save()
 
 
 if __name__ == "__main__":
